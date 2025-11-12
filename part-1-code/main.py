@@ -45,7 +45,50 @@ def do_train(args, model, train_dataloader, save_dir="./out"):
     # You can use progress_bar.update(1) to see the progress during training
     # You can refer to the pytorch tutorial covered in class for reference
 
-    raise NotImplementedError
+    print_freq = 500
+    total_loss = 0.0
+    
+    for epoch in range(num_epochs):
+        
+        # We loop over every batch from the dataloader
+        for batch in train_dataloader:
+            
+            # 1. Clear any previously calculated gradients
+            optimizer.zero_grad()
+            
+            # 2. Move the batch data to the correct device (e.g., GPU)
+            batch = {k: v.to(device) for k, v in batch.items()}
+            
+            # 3. Perform a forward pass. 
+            outputs = model(**batch)
+            
+            # 4. Get the loss from the model's output
+            loss = outputs.loss
+            
+            # NEW: Add the current step's loss to the total
+            total_loss += loss.item()
+            
+            # 5. Perform a backward pass to calculate gradients
+            loss.backward()
+            
+            # 6. Update the model's parameters using the optimizer
+            optimizer.step()
+            
+            # 7. Update the learning rate scheduler
+            lr_scheduler.step()
+            
+            # 8. Update the progress bar
+            progress_bar.update(1)
+            
+            # NEW: Get the current step number
+            current_step = progress_bar.n
+            
+            # NEW: Print the average loss every 'print_freq' steps
+            if current_step % print_freq == 0 and current_step > 0:
+                avg_loss = total_loss / print_freq
+                print(f"\n[Epoch {epoch+1}, Step {current_step}]: Average Training Loss: {avg_loss:.4f}")
+                # Reset the loss accumulator
+                total_loss = 0.0
 
     ##### YOUR CODE ENDS HERE ######
 
@@ -93,7 +136,34 @@ def create_augmented_dataloader(args, dataset):
     # dataloader will be for the original training split augmented with 5k random transformed examples from the training set.
     # You may find it helpful to see how the dataloader was created at other place in this code.
 
-    raise NotImplementedError
+    # raise NotImplementedError
+
+    # 1. Get the original 25,000 training samples
+    original_train_dataset = dataset["train"]
+
+    # 2. Select 5,000 random samples from the training set to transform
+    # We use the same seed for reproducibility
+    transformed_samples = dataset["train"].shuffle(seed=0).select(range(5000))
+
+    # 3. Apply the custom_transform (from utils.py) to these 5,000 samples
+    # We assume custom_transform is defined and imported via "from utils import *"
+    transformed_samples = transformed_samples.map(custom_transform, load_from_cache_file=False)
+
+    # 4. Combine the original 25,000 with the 5,000 transformed samples
+    augmented_dataset = datasets.concatenate_datasets([original_train_dataset, transformed_samples])
+
+    print(f"Augmented dataset created with {len(augmented_dataset)} samples (25k original + 5k transformed).")
+
+    # 5. Tokenize the entire new 30,000-sample dataset
+    tokenized_augmented_dataset = augmented_dataset.map(tokenize_function, batched=True, load_from_cache_file=False)
+
+    # 6. Prepare the dataset for the model (same as in __main__)
+    tokenized_augmented_dataset = tokenized_augmented_dataset.remove_columns(["text"])
+    tokenized_augmented_dataset = tokenized_augmented_dataset.rename_column("label", "labels")
+    tokenized_augmented_dataset.set_format("torch")
+
+    # 7. Create the final DataLoader
+    train_dataloader = DataLoader(tokenized_augmented_dataset, shuffle=True, batch_size=args.batch_size)
 
     ##### YOUR CODE ENDS HERE ######
 

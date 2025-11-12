@@ -14,6 +14,19 @@ from nltk.corpus import wordnet
 from nltk import word_tokenize
 from nltk.tokenize.treebank import TreebankWordDetokenizer
 
+import nltk
+import ssl
+
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
+
+nltk.download('punkt_tab', quiet=True)
+nltk.download('wordnet', quiet=True)
+nltk.download('averaged_perceptron_tagger', quiet=True)
 random.seed(0)
 
 
@@ -43,8 +56,45 @@ def custom_transform(example):
     # how you could implement two of them --- synonym replacement and typos.
 
     # You should update example["text"] using your transformation
+    
+    # --- Random Synonym Replacement ---
+    text = example["text"]
+    words = word_tokenize(text)
+    new_words = []
+    
+    # Set the probability of replacing a word
+    replacement_prob = 0.30 
 
-    raise NotImplementedError
+    for word in words:
+        # Check if we should replace this word based on probability
+        if random.random() < replacement_prob:
+            synonyms = set()
+            
+            # Find all synonyms using WordNet
+            for syn in wordnet.synsets(word):
+                for lemma in syn.lemmas():
+                    # Get the synonym name
+                    synonym = lemma.name()
+                    # Add it to the set if it's different from the original word
+                    # and doesn't contain underscores (which WordNet uses for phrases)
+                    if synonym.lower() != word.lower() and '_' not in synonym:
+                        synonyms.add(synonym)
+            
+            # If we found at least one valid synonym, pick one randomly
+            if len(synonyms) > 0:
+                new_word = random.choice(list(synonyms))
+                new_words.append(new_word)
+            else:
+                # No valid synonyms found, just append the original word
+                new_words.append(word)
+        else:
+            # We decided not to replace this word, append the original
+            new_words.append(word)
+            
+    # Detokenize the list of words back into a single string
+    new_text = TreebankWordDetokenizer().detokenize(new_words)
+    
+    example["text"] = new_text
 
     ##### YOUR CODE ENDS HERE ######
 
