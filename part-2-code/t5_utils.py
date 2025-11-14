@@ -20,7 +20,22 @@ def initialize_model(args):
     or training a T5 model initialized with the 'google-t5/t5-small' config
     from scratch.
     '''
-    pass
+    # Define the model checkpoint name
+    model_name = "google-t5/t5-small"
+
+    if args.finetune:
+        # Load the pre-trained model for fine-tuning
+        print(f"Loading pre-trained model for fine-tuning: {model_name}")
+        model = T5ForConditionalGeneration.from_pretrained(model_name)
+    else:
+        # Load the configuration and initialize a new model from scratch
+        print(f"Initializing model from scratch with config: {model_name}")
+        config = T5Config.from_pretrained(model_name)
+        model = T5ForConditionalGeneration(config)
+
+    # Move the model to the correct device
+    model.to(DEVICE)
+    return model
 
 def mkdir(dirpath):
     if not os.path.exists(dirpath):
@@ -30,12 +45,45 @@ def mkdir(dirpath):
             pass
 
 def save_model(checkpoint_dir, model, best):
-    # Save model checkpoint to be able to load the model later
-    pass
+    '''
+    Save model checkpoint to be able to load the model later.
+    '''
+    # Determine the save path based on whether it's the 'best' model
+    if best:
+        save_path = os.path.join(checkpoint_dir, 'best_model')
+    else:
+        # Save as a generic 'latest_checkpoint'
+        save_path = os.path.join(checkpoint_dir, 'latest_checkpoint')
+    
+    # Create the directory if it doesn't exist
+    mkdir(save_path)
+
+    # Use Hugging Face's save_pretrained to save model and config
+    print(f"Saving model checkpoint to {save_path}")
+    model.save_pretrained(save_path)
+
 
 def load_model_from_checkpoint(args, best):
-    # Load model from a checkpoint
-    pass
+    '''
+    Load model from a checkpoint.
+    '''
+    # Determine the load path
+    if best:
+        load_path = os.path.join(args.checkpoint_dir, 'best_model')
+    else:
+        load_path = os.path.join(args.checkpoint_dir, 'latest_checkpoint')
+
+    # Check if the path exists
+    if not os.path.exists(load_path):
+        raise FileNotFoundError(f"Checkpoint directory not found at: {load_path}")
+
+    # Load the model using Hugging Face's from_pretrained
+    print(f"Loading model checkpoint from {load_path}")
+    model = T5ForConditionalGeneration.from_pretrained(load_path)
+    
+    # Move the model to the correct device
+    model.to(DEVICE)
+    return model
 
 def initialize_optimizer_and_scheduler(args, model, epoch_length):
     optimizer = initialize_optimizer(args, model)
